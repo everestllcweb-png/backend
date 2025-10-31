@@ -1,0 +1,20 @@
+{
+  "name": "everest-backend",
+  "version": "1.0.0",
+  "description": "Backend for Everest Consultancy",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "NODE_ENV=production node server.js",
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "connect-mongo": "^5.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "mongoose": "^8.19.2"
+  }
+}
