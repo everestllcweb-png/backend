@@ -428,14 +428,30 @@ router.delete('/blogs/:id', requireAuth, async (req, res) => {
   }
 });
 
-// ===================== REVIEWS =====================
-// Admin → ALL; Public → only isApproved
+//===================== REVIEWS =====================
+// Admin → ALL; Public → active + (isApproved: true OR isApproved missing)
+
 router.get('/reviews', async (req, res) => {
   try {
-    const query = req.session?.adminId ? {} : { isApproved: true };
-    const reviews = await Review.find(query).sort({ createdAt: -1 });
+    const isAdmin = Boolean(req.session?.adminId);
+
+    // Public: do NOT require a session/cookie; include legacy rows with no isApproved
+    const publicQuery = {
+      // treat "active unless explicitly false"
+      isActive: { $ne: false },
+      $or: [{ isApproved: true }, { isApproved: { $exists: false } }],
+    };
+
+    const query = isAdmin ? {} : publicQuery;
+
+    const reviews = await Review.find(query)
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+
     res.json(reviews);
-  } catch {
+  } catch (err) {
+    console.error('Failed to fetch reviews:', err);
     res.status(500).json({ message: 'Failed to fetch reviews' });
   }
 });
@@ -445,16 +461,22 @@ router.post('/reviews', requireAuth, async (req, res) => {
     const review = new Review(req.body);
     await review.save();
     res.json(review);
-  } catch {
+  } catch (err) {
+    console.error('Failed to create review:', err);
     res.status(400).json({ message: 'Failed to create review' });
   }
 });
 
 router.put('/reviews/:id', requireAuth, async (req, res) => {
   try {
-    const review = await Review.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const review = await Review.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    ).lean();
     res.json(review);
-  } catch {
+  } catch (err) {
+    console.error('Failed to update review:', err);
     res.status(400).json({ message: 'Failed to update review' });
   }
 });
@@ -463,7 +485,8 @@ router.delete('/reviews/:id', requireAuth, async (req, res) => {
   try {
     await Review.findByIdAndDelete(req.params.id);
     res.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error('Failed to delete review:', err);
     res.status(400).json({ message: 'Failed to delete review' });
   }
 });
