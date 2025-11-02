@@ -6,6 +6,11 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const routes = require('./routes');
 
+// --- NEW: fetch fallback if not Node 18+ ---
+if (typeof fetch === 'undefined') {
+  global.fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
+}
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 const IS_PROD = process.env.NODE_ENV === 'production';
@@ -37,11 +42,14 @@ const envList = (s) =>
     .filter(Boolean);
 
 // Exact origins (protocol + host). Add all production variants.
-const ALLOWED_ORIGINS = [
+// --- NEW: de-dup to avoid repeats in logs/logic ---
+const dedupe = (arr) => [...new Set(arr)];
+
+const ALLOWED_ORIGINS = dedupe([
   'http://localhost:5173',
   ...envList(process.env.CORS_ORIGINS),  // e.g. "https://your-site.netlify.app,https://yourdomain.com,https://www.yourdomain.com"
   process.env.FRONTEND_ORIGIN,
-].filter(Boolean);
+].filter(Boolean));
 
 // Optional: quick visibility in logs
 console.log('✓ Allowed CORS origins:', ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : '(none set)');
@@ -74,7 +82,6 @@ const corsOptions = {
 app.use(cors(corsOptions));
 // Ensure preflights work globally
 app.options('*', cors(corsOptions));
-
 
 /* -----------------------
  * Body parsing
@@ -112,6 +119,18 @@ app.use(
  * --------------------- */
 app.use('/api', routes);
 
+// --- NEW (optional but recommended for mobile): public reviews route mount ---
+// Create server/routes/reviews.js that returns active (and $exists: false) approved items.
+// This avoids cookies on mobile for public data.
+// If you don’t have it yet, add it later; leaving this in won’t break the app.
+try {
+  const reviewsRouter = require('./routes/reviews');
+  app.use('/api/reviews', reviewsRouter);
+  console.log('✓ Mounted /api/reviews (public)');
+} catch {
+  console.log('ℹ️ /routes/reviews.js not found — skipping public reviews mount.');
+}
+
 /* -----------------------
  * Health checks
  * Keep both paths for convenience
@@ -137,7 +156,7 @@ const KEEPALIVE_URL = `${PUBLIC_BASE.replace(/\/+$/, '')}/health`;
 
 async function pingKeepAlive() {
   try {
-    // Node 18+ has global fetch
+    // Node 18+ has global fetch (fallback added above)
     const res = await fetch(KEEPALIVE_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     // console.log(`[keepalive] OK -> ${KEEPALIVE_URL}`);
