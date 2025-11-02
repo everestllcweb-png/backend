@@ -29,8 +29,6 @@ app.set('trust proxy', 1);
 
 /* -----------------------
  * CORS
- * Use CORS_ORIGINS for multiple origins (comma-separated)
- * e.g. CORS_ORIGINS="https://your-site.netlify.app,https://www.yourdomain.com"
  * --------------------- */
 const envList = (s) =>
   (s || '')
@@ -38,26 +36,45 @@ const envList = (s) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
+// Exact origins (protocol + host). Add all production variants.
 const ALLOWED_ORIGINS = [
-  'http://localhost:5173',              // Vite dev
-  ...envList(process.env.CORS_ORIGINS), // multiple allowed origins
-  process.env.FRONTEND_ORIGIN,          // optional single origin
+  'http://localhost:5173',
+  ...envList(process.env.CORS_ORIGINS),  // e.g. "https://your-site.netlify.app,https://yourdomain.com,https://www.yourdomain.com"
+  process.env.FRONTEND_ORIGIN,
 ].filter(Boolean);
+
+// Optional: quick visibility in logs
+console.log('✓ Allowed CORS origins:', ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : '(none set)');
 
 const corsOptions = {
   origin(origin, callback) {
-    // allow tools without Origin (curl, health checks)
+    // allow requests without Origin (health checks, curl)
     if (!origin) return callback(null, true);
-    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-    console.warn(`⚠️  CORS blocked: ${origin}`);
-    return callback(new Error(`CORS blocked: ${origin}`), false);
+
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // Don’t throw; just block
+    console.warn(`⚠️  CORS blocked for origin: ${origin}`);
+    return callback(null, false);
   },
   credentials: true,
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+  ],
+  optionsSuccessStatus: 204, // some clients prefer 204 over 200 for preflight
 };
 
 app.use(cors(corsOptions));
-// Make sure preflights succeed for all routes
+// Ensure preflights work globally
 app.options('*', cors(corsOptions));
+
 
 /* -----------------------
  * Body parsing
