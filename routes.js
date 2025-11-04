@@ -2,6 +2,8 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const router = express.Router();
+// ADD: crypto for Cloudinary signature
+const crypto = require('crypto');
 
 const Admin = require('./models/Admin');
 const Settings = require('./models/Settings');
@@ -490,6 +492,41 @@ router.delete('/reviews/:id', requireAuth, async (req, res) => {
     res.status(400).json({ message: 'Failed to delete review' });
   }
 });
+// ===================== CLOUDINARY SIGNATURE (for direct uploads) =====================
+// Creates a short-lived signature so the browser can upload straight to Cloudinary.
+// This keeps large file traffic OFF your frontend/backend hosts.
+router.post('/cloudinary/signature', async (req, res) => {
+  try {
+    const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env;
+
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+      return res.status(500).json({ message: 'Cloudinary env vars missing' });
+    }
+
+    // Optional folder from client (default "blogs")
+    const folder = (req.body?.folder || 'blogs').toString();
+    const timestamp = Math.floor(Date.now() / 1000);
+
+    // Cloudinary requires alphabetized params in the toSign string.
+    // Here we sign just { folder, timestamp }.
+    const toSign = `folder=${folder}&timestamp=${timestamp}`;
+    const signature = crypto
+      .createHash('sha1')
+      .update(toSign + CLOUDINARY_API_SECRET)
+      .digest('hex');
+
+    return res.json({
+      timestamp,
+      signature,
+      apiKey: CLOUDINARY_API_KEY,
+      folder,
+      cloudName: CLOUDINARY_CLOUD_NAME, // optional (handy on client)
+    });
+  } catch (err) {
+    return res.status(500).json({ message: 'Signature error' });
+  }
+});
+
 
 // ===================== APPOINTMENTS =====================
 // Admin list (protected)
