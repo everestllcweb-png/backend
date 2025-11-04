@@ -4,7 +4,7 @@ const settingsSchema = new mongoose.Schema({
   companyName: { type: String, default: "" },
   footerDescription: { type: String, default: "" },
   logoUrl: { type: String, default: "" },
-
+logoUrlb: { type: String, default: "" },
   email: { type: String, default: "" },
   mobile: { type: String, default: "" },
   telephone: { type: String, default: "" },
