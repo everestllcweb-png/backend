@@ -36,7 +36,7 @@ async function seed() {
     console.log('Creating admin user...');
     const hashedPassword = await bcrypt.hash('admin123', 10);
     await Admin.create({
-      username: 'admin',
+      username: 'admin',   
       password: hashedPassword
     });
     console.log('✓ Admin created (username: admin, password: admin123)');
